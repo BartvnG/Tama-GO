@@ -18,9 +18,10 @@ int lastButtonDebounceTimes[amountOfButtons];
 unsigned long buttonDebounceDelay = 50;
 
 //Menu
-String items[] = {"bruh", "Yeah", "Aonther option", "Another option", "Yet another option", "the last option I swear"};
+String items[] = {"1", "2", "3", "4", "5", "6", "7", "8"};
 const int amountOfItems = sizeof(items) / sizeof(items[0]);
 int menuIndex = 0;
+int menuPage = 0;
 
 
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
@@ -37,31 +38,96 @@ void setup() {
   display.setFont(ArialMT_Plain_10);
 }
 
+// void DrawMenu(String items[], int amountOfItems) {
+//   display.clear();
+//   display.drawRect(0, 0, 120, 64);
+//   Serial.println(menuIndex);
+//   if (menuIndex == amountOfItems) {
+//     menuIndex = 0;
+//   }
+//   int i = menuIndex;
+//   int elementsDrawn = 0;
+//   while (i < amountOfItems) {
+//       if (elementsDrawn != 0) {
+//         display.drawString(5, 10*elementsDrawn, items[i]);
+//       }
+//       else {
+//         String selectedItem = items[i];
+//         selectedItem.concat("<");
+//         display.drawString(5, 10*elementsDrawn, selectedItem);
+//       }
+//       elementsDrawn++;
+//       if (elementsDrawn == 5) {
+//         display.drawString(5, 50, "V");  
+//         break;
+//       }
+//       i++;
+//     }
+    
+//     display.display();
+// }
+
+
 void DrawMenu(String items[], int amountOfItems) {
   //fix for loop breaking
   display.clear();
   display.drawRect(0, 0, 120, 64);
-  display.drawString(5, 0, "Bruh");
-  display.drawString(5, 10, "Bruh");
-  display.drawString(5, 20, "Bruh");
-  // for(int i; i < 2; i++) {
-  //   display.drawString(5, 10*i, "Bruh");
-  // }
-  // for (int i; i < amountOfItems; i++) {
-  //   if (i != menuIndex) {
-  //     display.drawString(5, 10*i, items[i]);
-  //   }
-  //   else {
-  //     String selectedItem = items[i];
-  //     selectedItem.concat("<");
-  //     display.drawString(5, 10*i, selectedItem);
-  //   }
-  //   if (i == 4) {
-  //     display.drawString(5, 50, "V");
-  //     break;
-  //   }
-  // }
+  
+  // int itemsOnSchreen = (amountOfItems - (5 * menuPage + 1) < 5) ? amountOfItems % 5 : 5;
+  // int pagesNeeded = (amountOfItems / 5 == 0) ? amountOfItems / 5 - 1: amountOfItems / 5;
+  int pagesNeeded = (amountOfItems / 3) + 1;
+  if (amountOfItems % 3 == 0) {
+    pagesNeeded = amountOfItems / 3;
+  }
+  // int itemsOnSchreen = (menuPage == pagesNeeded) ? amountOfItems % 5 : 5; 
+  int itemsOnSchreen = 3;
+  if (amountOfItems - (3 * menuPage) < 3) {
+    itemsOnSchreen = amountOfItems % 3;
+  }
+
+  if (menuIndex >= itemsOnSchreen) {
+    menuIndex = 0;
+    menuPage++;
+  }
+  
+  if (menuPage == pagesNeeded) {
+      menuPage = 0;
+  }
+  else {
+    display.drawString(5, 50, "V");
+  }
+  Serial.println();
+  Serial.print("cal:");
+  Serial.print(amountOfItems - (3 *menuPage));
+  Serial.print(" ");
+  Serial.print(amountOfItems / 3);
+  Serial.print(" ");
+  Serial.println(amountOfItems % 3);
+  Serial.print("var:");
+  Serial.print(itemsOnSchreen);
+  Serial.print(" ");
+  Serial.println(menuIndex);
+  Serial.print(" ");
+  Serial.print(pagesNeeded);
+  Serial.print(" ");
+  Serial.print(menuPage);
+  Serial.println();
+  int i = 0;
+  int elementsDrawn = 0;
+  while (i < itemsOnSchreen) {
+    if (elementsDrawn != menuIndex) {
+      display.drawString(5, 10*elementsDrawn, items[i+3*menuPage]);
+    }
+    else {
+      String selectedItem = items[i+3*menuPage];
+      selectedItem.concat("<");
+      display.drawString(5, 10*i, selectedItem);
+    }
+    elementsDrawn++;
+    i++;
+  }
   display.display();
+ 
 }
 
 void ButtonLogic(int assignedButton) {
@@ -82,14 +148,16 @@ void ButtonLogic(int assignedButton) {
       {
       case 0:
         Serial.println("changed 1");
-        menuIndex++;
-        DrawMenu(items, amountOfItems);
         break;
       case 1:
         Serial.println("changed 2");
+        if (buttonStates[1] == HIGH) {
+          menuIndex++;
+          DrawMenu(items, amountOfItems);
+        }
         break;
       case 2:
-        Serial.println("changed 3");
+        // Serial.println("changed 3");
         if (buttonStates[2] == HIGH) {
           Serial.println("button 3 on");
           DrawMenu(items, amountOfItems);
@@ -110,5 +178,5 @@ void loop() {
   {
     ButtonLogic(i);
   }
-  
+  // Serial.println("main loop active");
 }

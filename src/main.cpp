@@ -18,116 +18,83 @@ int lastButtonDebounceTimes[amountOfButtons];
 unsigned long buttonDebounceDelay = 50;
 
 //Menu
-String items[] = {"1", "2", "3", "4", "5", "6", "7", "8"};
-const int amountOfItems = sizeof(items) / sizeof(items[0]);
+String status[] = {"Mood: Happy", "Hunger: 3/10", "Thirst: 2/10", "Steps: 143" };
+String food[] = {"Appel x4", "Peer x5", "Burger x2", "Salade x5", "Frikandel x6", "Kroket x2", "Donut x1" };
+String drinks[] = {"Water x8", "Fris x3", "Ranja x 0", "Vitamine drink x5" };
+String settings[] = {"Volume: 5/10", "EXIT"};
+String *menus[] = { status, food, drinks, settings };
+int currentMenu = 4;
 int menuIndex = 0;
-int menuPage = 0;
 
 
-// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
-SH1106Wire display(0x3c, SDA, SCL);
+//Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
+SH1106Wire oled(0x3c, SDA, SCL);
 
 void setup() {
-  // put your setup code here, to run once:
+  //put your setup code here, to run once:
   Serial.begin(9600);
   for (int i = 0; i < amountOfButtons; i++) {
     pinMode(buttons[i], INPUT_PULLUP);
   }
-  display.init();
-  display.flipScreenVertically();
-  display.setFont(ArialMT_Plain_10);
+  oled.init();
+  oled.flipScreenVertically();
+  oled.setFont(ArialMT_Plain_10);
+  oled.clear();
+  oled.drawXbm(0, 0, 128, 64, logo);
+  oled.display();
 }
 
-// void DrawMenu(String items[], int amountOfItems) {
-//   display.clear();
-//   display.drawRect(0, 0, 120, 64);
-//   Serial.println(menuIndex);
-//   if (menuIndex == amountOfItems) {
-//     menuIndex = 0;
-//   }
-//   int i = menuIndex;
-//   int elementsDrawn = 0;
-//   while (i < amountOfItems) {
-//       if (elementsDrawn != 0) {
-//         display.drawString(5, 10*elementsDrawn, items[i]);
-//       }
-//       else {
-//         String selectedItem = items[i];
-//         selectedItem.concat("<");
-//         display.drawString(5, 10*elementsDrawn, selectedItem);
-//       }
-//       elementsDrawn++;
-//       if (elementsDrawn == 5) {
-//         display.drawString(5, 50, "V");  
-//         break;
-//       }
-//       i++;
-//     }
-    
-//     display.display();
-// }
-
-
-void DrawMenu(String items[], int amountOfItems) {
-  //fix for loop breaking
-  display.clear();
-  display.drawRect(0, 0, 120, 64);
-  
-  // int itemsOnSchreen = (amountOfItems - (5 * menuPage + 1) < 5) ? amountOfItems % 5 : 5;
-  // int pagesNeeded = (amountOfItems / 5 == 0) ? amountOfItems / 5 - 1: amountOfItems / 5;
-  int pagesNeeded = (amountOfItems / 3) + 1;
-  if (amountOfItems % 3 == 0) {
-    pagesNeeded = amountOfItems / 3;
+void DrawMenu(int menu) {
+  int amountOfItems = 0;
+  switch (menu)
+  {
+  case 0:
+    amountOfItems = sizeof(status)/sizeof(String);
+    break;
+  case 1:
+    amountOfItems = sizeof(food)/sizeof(String);
+    break;
+  case 2:
+    amountOfItems = sizeof(drinks)/sizeof(String);
+    break;
+  case 3:
+    amountOfItems = sizeof(settings)/sizeof(String);
+    break;
+  default:
+    break;
   }
-  // int itemsOnSchreen = (menuPage == pagesNeeded) ? amountOfItems % 5 : 5; 
-  int itemsOnSchreen = 3;
-  if (amountOfItems - (3 * menuPage) < 3) {
-    itemsOnSchreen = amountOfItems % 3;
-  }
-
-  if (menuIndex >= itemsOnSchreen) {
+  oled.clear();
+  oled.drawRect(0, 0, 120, 64);
+  if (menuIndex == amountOfItems) {
     menuIndex = 0;
-    menuPage++;
   }
-  
-  if (menuPage == pagesNeeded) {
-      menuPage = 0;
-  }
-  else {
-    display.drawString(5, 50, "V");
-  }
-  Serial.println();
-  Serial.print("cal:");
-  Serial.print(amountOfItems - (3 *menuPage));
-  Serial.print(" ");
-  Serial.print(amountOfItems / 3);
-  Serial.print(" ");
-  Serial.println(amountOfItems % 3);
-  Serial.print("var:");
-  Serial.print(itemsOnSchreen);
-  Serial.print(" ");
-  Serial.println(menuIndex);
-  Serial.print(" ");
-  Serial.print(pagesNeeded);
-  Serial.print(" ");
-  Serial.print(menuPage);
-  Serial.println();
-  int i = 0;
+  int i = menuIndex;
   int elementsDrawn = 0;
-  while (i < itemsOnSchreen) {
-    if (elementsDrawn != menuIndex) {
-      display.drawString(5, 10*elementsDrawn, items[i+3*menuPage]);
+  while (i < amountOfItems) {
+      if (elementsDrawn != 0) {
+        oled.drawString(5, 10*elementsDrawn, menus[menu][i]);
+      }
+      else {
+        String selectedItem = menus[menu][i];
+        selectedItem.concat("<");
+        oled.drawString(5, 10*elementsDrawn, selectedItem);
+      }
+      elementsDrawn++;
+      if (elementsDrawn > 4) {
+        oled.drawString(5, 50, "V");  
+        break;
+      }
+      i++;
     }
-    else {
-      String selectedItem = items[i+3*menuPage];
-      selectedItem.concat("<");
-      display.drawString(5, 10*i, selectedItem);
-    }
-    elementsDrawn++;
-    i++;
+    oled.display();
+}
+
+void SelectFromMenu() {
+  if (currentMenu != 4) {
+    oled.clear();
+    oled.drawString(0, 0, menus[currentMenu][menuIndex]);
+    oled.display();
   }
-  display.display();
- 
 }
 
 void ButtonLogic(int assignedButton) {
@@ -148,19 +115,25 @@ void ButtonLogic(int assignedButton) {
       {
       case 0:
         Serial.println("changed 1");
+        SelectFromMenu();
         break;
       case 1:
-        Serial.println("changed 2");
         if (buttonStates[1] == HIGH) {
+          Serial.println("button 2 on");
           menuIndex++;
-          DrawMenu(items, amountOfItems);
+          DrawMenu(currentMenu);
         }
         break;
       case 2:
         // Serial.println("changed 3");
         if (buttonStates[2] == HIGH) {
           Serial.println("button 3 on");
-          DrawMenu(items, amountOfItems);
+          menuIndex = 0;
+          currentMenu++;
+          if (currentMenu > 4) {
+            currentMenu = 0;
+          }
+          DrawMenu(currentMenu);
         }
         break;
       default:
@@ -177,6 +150,9 @@ void loop() {
   for (int i = 0; i < amountOfButtons; i++)
   {
     ButtonLogic(i);
+  }
+  if (millis() >= 1000) {
+    oled.clear();
   }
   // Serial.println("main loop active");
 }

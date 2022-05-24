@@ -3,6 +3,8 @@
 #include <Wire.h>
 #include <bitMaps.h>
 #include <SH1106Wire.h>
+#include <WiFi.h>
+#include <WiFiServer.h>
 
 //Variables
 //Button variables
@@ -19,16 +21,22 @@ unsigned long buttonDebounceDelay = 50;
 
 //Menu
 String status[] = {"Mood: Happy", "Hunger: 3/10", "Thirst: 2/10", "Steps: 143" };
-String food[] = {"Appel x4", "Peer x5", "Burger x2", "Salade x5", "Frikandel x6", "Kroket x2", "Donut x1" };
-String drinks[] = {"Water x8", "Fris x3", "Ranja x 0", "Vitamine drink x5" };
+String food[] = {"Appel x 4", "Peer x 5", "Borgir x 2", "Salade x 5", "Frikandel x 6", "Kroket x 2", "Donut x 1" };
+String drinks[] = {"Water x 8", "Fris x 3", "Ranja x 0", "Vitamine drink x 5" };
 String settings[] = {"Volume: 5/10", "EXIT"};
 String *menus[] = { status, food, drinks, settings };
 int currentMenu = 4;
 int menuIndex = 0;
 
-
 //Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 SH1106Wire oled(0x3c, SDA, SCL);
+
+const uint ServerPort = 23;
+WiFiServer Server(ServerPort);
+const char* ssid = "esp32_phone";
+const char* password = "E077p727";
+
+String clientMessage = "";
 
 void setup() {
   //put your setup code here, to run once:
@@ -36,12 +44,43 @@ void setup() {
   for (int i = 0; i < amountOfButtons; i++) {
     pinMode(buttons[i], INPUT_PULLUP);
   }
+
   oled.init();
   oled.flipScreenVertically();
   oled.setFont(ArialMT_Plain_10);
   oled.clear();
   oled.drawXbm(0, 0, 128, 64, logo);
   oled.display();
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.println("Connecting to WiFi..");
+  }
+  Serial.println("Connected to the WiFi network");
+  Server.begin();
+  Serial.println(WiFi.localIP());
+}
+
+WiFiClient client;
+void CheckForConnections()
+{
+  if (Server.hasClient())
+  {
+    // If we are already connected to another computer, 
+    // then reject the new connection. Otherwise accept
+    // the connection. 
+    if (client.connected())
+    {
+      Serial.println("Connection rejected");
+      Server.available().stop();
+    }
+    else
+    {
+      Serial.println("Connection accepted");
+      client = Server.available();
+    }
+  }
 }
 
 void DrawMenu(int menu) {
@@ -91,9 +130,14 @@ void DrawMenu(int menu) {
 
 void SelectFromMenu() {
   if (currentMenu != 4) {
-    oled.clear();
-    oled.drawString(0, 0, menus[currentMenu][menuIndex]);
-    oled.display();
+    String selectedItem = menus[currentMenu][menuIndex];
+    int newNumber = selectedItem.substring(selectedItem.length()-1).toInt()-1;
+    selectedItem = selectedItem.substring(0, selectedItem.length()-1);
+    selectedItem += newNumber;
+    if (newNumber >= 0) {
+      menus[currentMenu][menuIndex] = selectedItem;
+    }
+    DrawMenu(currentMenu);
   }
 }
 
@@ -114,8 +158,10 @@ void ButtonLogic(int assignedButton) {
       switch (assignedButton)
       {
       case 0:
-        Serial.println("changed 1");
-        SelectFromMenu();
+        if (buttonStates[0] == HIGH) {
+          Serial.println("button 1 on");
+          SelectFromMenu();
+        }
         break;
       case 1:
         if (buttonStates[1] == HIGH) {
@@ -145,8 +191,29 @@ void ButtonLogic(int assignedButton) {
   lastButtonStates[assignedButton] = buttonReading[assignedButton];
 }
 
+void HandleInput() {
+  if(client.connected() > 0) {
+      while (client.available() > 0) {
+        char a = client.read();
+        clientMessage += a;
+      }
+  }
+  String formattedclientMessage = clientMessage.substring(0, clientMessage.length()-1);
+  if (formattedclientMessage == "#jk%") {
+    Serial.print("From client: ");
+    Serial.println(clientMessage.substring(0, clientMessage.length()-1));
+  }
+  if (formattedclientMessage.endsWith("%")) {
+    client.print("recieved:");
+    client.println(formattedclientMessage);
+    formattedclientMessage = "";
+    clientMessage = "";
+  }
+}
+
 void loop() {
   // put your main code here, to run repeatedly:
+  CheckForConnections();
   for (int i = 0; i < amountOfButtons; i++)
   {
     ButtonLogic(i);
@@ -154,5 +221,5 @@ void loop() {
   if (millis() >= 1000) {
     oled.clear();
   }
-  // Serial.println("main loop active");
+  HandleInput();
 }

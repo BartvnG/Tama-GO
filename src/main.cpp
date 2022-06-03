@@ -25,15 +25,25 @@ String food[] = {"Appel x 4", "Peer x 5", "Borgir x 2", "Salade x 5", "Frikandel
 String drinks[] = {"Water x 8", "Fris x 3", "Ranja x 0", "Vitamine drink x 5" };
 String settings[] = {"Volume: 5/10", "EXIT"};
 String *menus[] = { status, food, drinks, settings };
-int currentMenu = 4;
+int currentMenu = 0;
 int menuIndex = 0;
+
+//Character
+int characterIndex = 0;
+int hatIndex = 1;
+int faceIndex = 0;
+int shirtIndex = 0;
+int pantsIndex = 0;
+int characterIndexes[] = { characterIndex, hatIndex, faceIndex, shirtIndex, pantsIndex};
+static unsigned char **bits[] = {characterBits, hatBits, faceBits, shirtBits, pantsBits};
+
 
 //Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 SH1106Wire oled(0x3c, SDA, SCL);
 
 const uint ServerPort = 23;
 WiFiServer Server(ServerPort);
-const char* ssid = "esp32_phone";
+const char* ssid = "esp32_laptop";
 const char* password = "E077p727";
 
 String clientMessage = "";
@@ -49,7 +59,7 @@ void setup() {
   oled.flipScreenVertically();
   oled.setFont(ArialMT_Plain_10);
   oled.clear();
-  oled.drawXbm(0, 0, 128, 64, logo);
+  oled.drawXbm(0, 16, 128, 30, logo);
   oled.display();
 
   WiFi.begin(ssid, password);
@@ -60,6 +70,7 @@ void setup() {
   Serial.println("Connected to the WiFi network");
   Server.begin();
   Serial.println(WiFi.localIP());
+  oled.clear();
 }
 
 WiFiClient client;
@@ -120,7 +131,7 @@ void DrawMenu(int menu) {
       }
       elementsDrawn++;
       if (elementsDrawn > 4) {
-        oled.drawString(5, 50, "V");  
+        oled.drawString(5, 50, "V");
         break;
       }
       i++;
@@ -176,7 +187,7 @@ void ButtonLogic(int assignedButton) {
           Serial.println("button 3 on");
           menuIndex = 0;
           currentMenu++;
-          if (currentMenu > 4) {
+          if (currentMenu > 3) {
             currentMenu = 0;
           }
           DrawMenu(currentMenu);
@@ -198,22 +209,35 @@ void HandleInput() {
         clientMessage += a;
       }
   }
-  String formattedclientMessage = clientMessage.substring(0, clientMessage.length()-1);
-  if (formattedclientMessage == "#jk%") {
-    Serial.print("From client: ");
-    Serial.println(clientMessage.substring(0, clientMessage.length()-1));
+  if (clientMessage.startsWith("#")) {
+    // if (clientMessage == "#jk%") {
+    //   Serial.print("From client: ");
+    //   Serial.println(clientMessage.substring(0, clientMessage.length()-1));
+    // }
+    if (clientMessage.endsWith("%")) {
+      client.print("recieved:");
+      client.println(clientMessage.substring(1, clientMessage.length()-1));
+    }
   }
-  if (formattedclientMessage.endsWith("%")) {
-    client.print("recieved:");
-    client.println(formattedclientMessage);
-    formattedclientMessage = "";
-    clientMessage = "";
+  if (clientMessage != "") {
+    Serial.println(clientMessage);
   }
+  clientMessage = "";
+}
+
+void DrawCharacter() {
+  oled.clear();
+  oled.drawXbm(0, 0, 128, 64, bits[0][characterIndex]);
+  oled.drawXbm(0, 0, 128, 64, bits[1][hatIndex]);
+  oled.drawXbm(0, 0, 128, 64, bits[2][faceIndex]);
+  oled.drawXbm(0, 0, 128, 64, bits[3][shirtIndex]);
+  oled.drawXbm(0, 0, 128, 64, bits[4][pantsIndex]);
+  oled.display();
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  CheckForConnections();
+  // CheckForConnections();
   for (int i = 0; i < amountOfButtons; i++)
   {
     ButtonLogic(i);
@@ -222,4 +246,7 @@ void loop() {
     oled.clear();
   }
   HandleInput();
+  if (currentMenu == 0) {
+    DrawCharacter();
+  }
 }

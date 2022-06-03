@@ -13,7 +13,7 @@
 #define button3 13
 int buttons[] = {button1, button2, button3};
 const int amountOfButtons = sizeof(buttons)/sizeof(buttons[0]);
-int buttonReading[amountOfButtons];
+int buttonReading;
 int buttonStates[amountOfButtons];
 int lastButtonStates[amountOfButtons];
 int lastButtonDebounceTimes[amountOfButtons];
@@ -23,9 +23,9 @@ unsigned long buttonDebounceDelay = 50;
 String status[] = {"Mood: Happy", "Hunger: 3/10", "Thirst: 2/10", "Steps: 143" };
 String food[] = {"Appel x 4", "Peer x 5", "Borgir x 2", "Salade x 5", "Frikandel x 6", "Kroket x 2", "Donut x 1" };
 String drinks[] = {"Water x 8", "Fris x 3", "Ranja x 0", "Vitamine drink x 5" };
-String settings[] = {"Volume: 5/10", "EXIT"};
+String settings[] = {"Volume: 5/10", "RESTART"};
 String *menus[] = { status, food, drinks, settings };
-int currentMenu = 0;
+int currentMenu = 4;
 int menuIndex = 0;
 
 //Character
@@ -47,31 +47,6 @@ const char* ssid = "esp32_laptop";
 const char* password = "E077p727";
 
 String clientMessage = "";
-
-void setup() {
-  //put your setup code here, to run once:
-  Serial.begin(9600);
-  for (int i = 0; i < amountOfButtons; i++) {
-    pinMode(buttons[i], INPUT_PULLUP);
-  }
-
-  oled.init();
-  oled.flipScreenVertically();
-  oled.setFont(ArialMT_Plain_10);
-  oled.clear();
-  oled.drawXbm(0, 16, 128, 30, logo);
-  oled.display();
-
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.println("Connecting to WiFi..");
-  }
-  Serial.println("Connected to the WiFi network");
-  Server.begin();
-  Serial.println(WiFi.localIP());
-  oled.clear();
-}
 
 WiFiClient client;
 void CheckForConnections()
@@ -154,18 +129,17 @@ void SelectFromMenu() {
 
 void ButtonLogic(int assignedButton) {
   //Read button value
-  buttonReading[assignedButton] = digitalRead(buttons[assignedButton]);
+  buttonReading = digitalRead(buttons[assignedButton]);
 
   //Reset debounce timer if state has changed
-  if (buttonReading[assignedButton] != lastButtonStates[assignedButton]) {
+  if (buttonReading != lastButtonStates[assignedButton]) {
     lastButtonDebounceTimes[assignedButton] = millis();
   }
 
   //If the debounce time has passed, execute button logic
   if ((millis() - lastButtonDebounceTimes[assignedButton]) > buttonDebounceDelay) {
-    if (buttonReading[assignedButton] != buttonStates[assignedButton]) {
-      buttonStates[assignedButton] = buttonReading[assignedButton];
-      //Code for button one
+    if (buttonReading != buttonStates[assignedButton]) {
+      buttonStates[assignedButton] = buttonReading;
       switch (assignedButton)
       {
       case 0:
@@ -187,7 +161,7 @@ void ButtonLogic(int assignedButton) {
           Serial.println("button 3 on");
           menuIndex = 0;
           currentMenu++;
-          if (currentMenu > 3) {
+          if (currentMenu > 4) {
             currentMenu = 0;
           }
           DrawMenu(currentMenu);
@@ -199,7 +173,7 @@ void ButtonLogic(int assignedButton) {
     }
   }
   //Update the button state
-  lastButtonStates[assignedButton] = buttonReading[assignedButton];
+  lastButtonStates[assignedButton] = buttonReading;
 }
 
 void HandleInput() {
@@ -235,6 +209,31 @@ void DrawCharacter() {
   oled.display();
 }
 
+void setup() {
+  //put your setup code here, to run once:
+  Serial.begin(9600);
+  for (int i = 0; i < amountOfButtons; i++) {
+    pinMode(buttons[i], INPUT_PULLUP);
+  }
+
+  oled.init();
+  oled.flipScreenVertically();
+  oled.setFont(ArialMT_Plain_10);
+  oled.clear();
+  oled.drawXbm(0, 16, 128, 30, logo);
+  oled.display();
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.println("Connecting to WiFi..");
+  }
+  Serial.println("Connected to the WiFi network");
+  Server.begin();
+  Serial.println(WiFi.localIP());
+  DrawCharacter();
+}
+
 void loop() {
   // put your main code here, to run repeatedly:
   // CheckForConnections();
@@ -242,11 +241,8 @@ void loop() {
   {
     ButtonLogic(i);
   }
-  if (millis() >= 1000) {
-    oled.clear();
-  }
   HandleInput();
-  if (currentMenu == 0) {
+  if (currentMenu == 4) {
     DrawCharacter();
   }
 }

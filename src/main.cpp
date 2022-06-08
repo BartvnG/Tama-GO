@@ -47,15 +47,18 @@ const char* ssid = "esp32_laptop";
 const char* password = "E077p727";
 
 String clientMessage = "";
+const char startChar = '#';
+const char endChar = '%';
+bool communicationStarted = false;
 
 WiFiClient client;
 void CheckForConnections()
 {
   if (Server.hasClient())
   {
-    // If we are already connected to another computer, 
+    // If we are already connected to another computer,
     // then reject the new connection. Otherwise accept
-    // the connection. 
+    // the connection.
     if (client.connected())
     {
       Serial.println("Connection rejected");
@@ -176,27 +179,31 @@ void ButtonLogic(int assignedButton) {
   lastButtonStates[assignedButton] = buttonReading;
 }
 
-void HandleInput() {
+void HandleMessage(String message) {
+  client.println(message);
+  // int index;
+  // int value;
+
+  // index = message.indexOf("!");
+  // // message = message.substring(index + 1, message.length());
+  // index = message.indexOf("!");
+  // value = message.substring(0, index -1).toInt();
+  // client.print("read val: ");
+  // client.println(value);
+
+}
+
+void ListenToClient() {
   if(client.connected() > 0) {
       while (client.available() > 0) {
         char a = client.read();
         clientMessage += a;
+        }
+        clientMessage = clientMessage.substring(0, clientMessage.length()-1);
+        if (clientMessage.startsWith("#") && clientMessage.endsWith("%")) {
+        HandleMessage(clientMessage.substring(1, clientMessage.length()-1));
       }
   }
-  if (clientMessage.startsWith("#")) {
-    // if (clientMessage == "#jk%") {
-    //   Serial.print("From client: ");
-    //   Serial.println(clientMessage.substring(0, clientMessage.length()-1));
-    // }
-    if (clientMessage.endsWith("%")) {
-      client.print("recieved:");
-      client.println(clientMessage.substring(1, clientMessage.length()-1));
-    }
-  }
-  if (clientMessage != "") {
-    Serial.println(clientMessage);
-  }
-  clientMessage = "";
 }
 
 void DrawCharacter() {
@@ -236,12 +243,13 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  // CheckForConnections();
+  CheckForConnections();
   for (int i = 0; i < amountOfButtons; i++)
   {
     ButtonLogic(i);
   }
-  HandleInput();
+  // HandleInput();
+  ListenToClient();
   if (currentMenu == 4) {
     DrawCharacter();
   }

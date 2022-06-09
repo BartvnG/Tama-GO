@@ -72,6 +72,33 @@ void CheckForConnections()
   }
 }
 
+void HandleMessage(String message) {
+  client.println(message);
+  int index;
+  int value;
+  
+  for(int i = 0; i < 5; i++) {
+    index = message.indexOf("!");
+    message = message.substring(index + 1, message.length());
+    index = message.indexOf("!");
+    value = message.substring(0, index).toInt();
+    characterIndexes[i] = value;
+  }
+}
+
+void ListenToClient() {
+  if(client.connected() > 0) {
+      while (client.available() > 0) {
+        char a = client.read();
+        clientMessage += a;
+        }
+        clientMessage = clientMessage.substring(0, clientMessage.length()-1);
+        if (clientMessage.startsWith("#") && clientMessage.endsWith("%")) {
+        HandleMessage(clientMessage.substring(1, clientMessage.length()-1));
+      }
+  }
+}
+
 void DrawMenu(int menu) {
   int amountOfItems = 0;
   switch (menu)
@@ -130,6 +157,39 @@ void SelectFromMenu() {
   }
 }
 
+void DrawCharacter() {
+  oled.clear();
+  for (int i = 0; i < 5; i++) {
+    oled.drawXbm(0, 0, 128, 64, bits[i][characterIndexes[i]]);
+  }
+  oled.display();
+}
+
+void setup() {
+  //put your setup code here, to run once:
+  Serial.begin(9600);
+  for (int i = 0; i < amountOfButtons; i++) {
+    pinMode(buttons[i], INPUT_PULLUP);
+  }
+
+  oled.init();
+  oled.flipScreenVertically();
+  oled.setFont(ArialMT_Plain_10);
+  oled.clear();
+  oled.drawXbm(0, 16, 128, 30, logo);
+  oled.display();
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.println("Connecting to WiFi..");
+  }
+  Serial.println("Connected to the WiFi network");
+  Server.begin();
+  Serial.println(WiFi.localIP());
+  DrawCharacter();
+}
+
 void ButtonLogic(int assignedButton) {
   //Read button value
   buttonReading = digitalRead(buttons[assignedButton]);
@@ -179,68 +239,6 @@ void ButtonLogic(int assignedButton) {
   lastButtonStates[assignedButton] = buttonReading;
 }
 
-void HandleMessage(String message) {
-  client.println(message);
-  // int index;
-  // int value;
-
-  // index = message.indexOf("!");
-  // // message = message.substring(index + 1, message.length());
-  // index = message.indexOf("!");
-  // value = message.substring(0, index -1).toInt();
-  // client.print("read val: ");
-  // client.println(value);
-
-}
-
-void ListenToClient() {
-  if(client.connected() > 0) {
-      while (client.available() > 0) {
-        char a = client.read();
-        clientMessage += a;
-        }
-        clientMessage = clientMessage.substring(0, clientMessage.length()-1);
-        if (clientMessage.startsWith("#") && clientMessage.endsWith("%")) {
-        HandleMessage(clientMessage.substring(1, clientMessage.length()-1));
-      }
-  }
-}
-
-void DrawCharacter() {
-  oled.clear();
-  oled.drawXbm(0, 0, 128, 64, bits[0][characterIndex]);
-  oled.drawXbm(0, 0, 128, 64, bits[1][hatIndex]);
-  oled.drawXbm(0, 0, 128, 64, bits[2][faceIndex]);
-  oled.drawXbm(0, 0, 128, 64, bits[3][shirtIndex]);
-  oled.drawXbm(0, 0, 128, 64, bits[4][pantsIndex]);
-  oled.display();
-}
-
-void setup() {
-  //put your setup code here, to run once:
-  Serial.begin(9600);
-  for (int i = 0; i < amountOfButtons; i++) {
-    pinMode(buttons[i], INPUT_PULLUP);
-  }
-
-  oled.init();
-  oled.flipScreenVertically();
-  oled.setFont(ArialMT_Plain_10);
-  oled.clear();
-  oled.drawXbm(0, 16, 128, 30, logo);
-  oled.display();
-
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.println("Connecting to WiFi..");
-  }
-  Serial.println("Connected to the WiFi network");
-  Server.begin();
-  Serial.println(WiFi.localIP());
-  DrawCharacter();
-}
-
 void loop() {
   // put your main code here, to run repeatedly:
   CheckForConnections();
@@ -248,7 +246,6 @@ void loop() {
   {
     ButtonLogic(i);
   }
-  // HandleInput();
   ListenToClient();
   if (currentMenu == 4) {
     DrawCharacter();

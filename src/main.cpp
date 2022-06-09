@@ -1,10 +1,12 @@
 #include <Arduino.h>
 #include <SPI.h>
-#include <Wire.h>
 #include <bitMaps.h>
 #include <SH1106Wire.h>
 #include <WiFi.h>
 #include <WiFiServer.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
 
 //Variables
 //Button variables
@@ -28,7 +30,7 @@ String *menus[] = { status, food, drinks, settings };
 int currentMenu = 4;
 int menuIndex = 0;
 
-//Character
+//Personal
 int characterIndex = 0;
 int hatIndex = 1;
 int faceIndex = 0;
@@ -36,8 +38,16 @@ int shirtIndex = 0;
 int pantsIndex = 0;
 int characterIndexes[] = { characterIndex, hatIndex, faceIndex, shirtIndex, pantsIndex};
 static unsigned char **bits[] = {characterBits, hatBits, faceBits, shirtBits, pantsBits};
+//mpu
+Adafruit_MPU6050 mpu;
+int accelX, accelY, accelZ;
+unsigned long previousMeasure;
+float vectorprevious;
+float vector;
+float totalvector;
+int Steps = 0;
 
-
+//Connection
 //Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 SH1106Wire oled(0x3c, SDA, SCL);
 
@@ -46,6 +56,7 @@ WiFiServer Server(ServerPort);
 const char* ssid = "esp32_laptop";
 const char* password = "E077p727";
 
+//Communication
 String clientMessage = "";
 const char startChar = '#';
 const char endChar = '%';
@@ -98,6 +109,16 @@ void ListenToClient() {
       }
   }
 }
+
+// void getAccel() {
+//   TinyWireM.beginTransmission(mpu); //I2C address of the MPU
+//   TinyWireM.write(0x3B); //  Acceleration data register
+//   TinyWireM.endTransmission();
+//   TinyWireM.requestFrom(mpu, 6); // Get 6 bytes, 2 for each DoF
+//   accelX = TinyWireM.read() << 8|TinyWireM.read(); 
+//   accelY = TinyWireM.read() << 8|TinyWireM.read();
+//   accelZ = TinyWireM.read() << 8|TinyWireM.read();
+// }
 
 void DrawMenu(int menu) {
   int amountOfItems = 0;
@@ -168,9 +189,97 @@ void DrawCharacter() {
 void setup() {
   //put your setup code here, to run once:
   Serial.begin(9600);
+  // TinyWireM.begin();
+  // TinyWireM.beginTransmission(mpu); 
+  // TinyWireM.write(0x6B); //  Power setting address
+  // TinyWireM.write(0b00000000); // Disable sleep mode (just in case)
+  // TinyWireM.endTransmission();
+  // TinyWireM.beginTransmission(mpu); 
+  // TinyWireM.write(0x1B); // Config register for Gyro
+  // TinyWireM.write(0x00000000); // 250° per second range (default)
+  // TinyWireM.endTransmission();
+  // TinyWireM.beginTransmission(mpu); //I2C address of the MPU
+  // TinyWireM.write(0x1C); // Accelerometer config register
+  // TinyWireM.write(0b00000000); // 2g range +/- (default)
+  // TinyWireM.endTransmission();
+  while (!Serial)
+    delay(10); // will pause Zero, Leonardo, etc until serial console opens
+
+  Serial.println("Adafruit MPU6050 test!");
+
+  // Try to initialize!
+  if (!mpu.begin()) {
+    Serial.println("Failed to find MPU6050 chip");
+    while (1) {
+      delay(10);
+    }
+  }
+  Serial.println("MPU6050 Found!");
+
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  Serial.print("Accelerometer range set to: ");
+  switch (mpu.getAccelerometerRange()) {
+  case MPU6050_RANGE_2_G:
+    Serial.println("+-2G");
+    break;
+  case MPU6050_RANGE_4_G:
+    Serial.println("+-4G");
+    break;
+  case MPU6050_RANGE_8_G:
+    Serial.println("+-8G");
+    break;
+  case MPU6050_RANGE_16_G:
+    Serial.println("+-16G");
+    break;
+  }
+  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+  Serial.print("Gyro range set to: ");
+  switch (mpu.getGyroRange()) {
+  case MPU6050_RANGE_250_DEG:
+    Serial.println("+- 250 deg/s");
+    break;
+  case MPU6050_RANGE_500_DEG:
+    Serial.println("+- 500 deg/s");
+    break;
+  case MPU6050_RANGE_1000_DEG:
+    Serial.println("+- 1000 deg/s");
+    break;
+  case MPU6050_RANGE_2000_DEG:
+    Serial.println("+- 2000 deg/s");
+    break;
+  }
+
+  mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
+  Serial.print("Filter bandwidth set to: ");
+  switch (mpu.getFilterBandwidth()) {
+  case MPU6050_BAND_260_HZ:
+    Serial.println("260 Hz");
+    break;
+  case MPU6050_BAND_184_HZ:
+    Serial.println("184 Hz");
+    break;
+  case MPU6050_BAND_94_HZ:
+    Serial.println("94 Hz");
+    break;
+  case MPU6050_BAND_44_HZ:
+    Serial.println("44 Hz");
+    break;
+  case MPU6050_BAND_21_HZ:
+    Serial.println("21 Hz");
+    break;
+  case MPU6050_BAND_10_HZ:
+    Serial.println("10 Hz");
+    break;
+  case MPU6050_BAND_5_HZ:
+    Serial.println("5 Hz");
+    break;
+  }
   for (int i = 0; i < amountOfButtons; i++) {
     pinMode(buttons[i], INPUT_PULLUP);
   }
+
+  Serial.println("");
+  delay(100);
 
   oled.init();
   oled.flipScreenVertically();
@@ -250,4 +359,14 @@ void loop() {
   if (currentMenu == 4) {
     DrawCharacter();
   }
+  /* Get new sensor events with the readings */
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+  vector = sqrt( (a.acceleration.x * a.acceleration.x) + (a.acceleration.y * a.acceleration.y) + (a.acceleration.z * a.acceleration.z) );
+  totalvector = vector - vectorprevious;
+  if (totalvector > 6 && millis() - previousMeasure <= 500){
+    Steps++;
+  }
+  vectorprevious = vector;
+  Serial.println(Steps);
 }

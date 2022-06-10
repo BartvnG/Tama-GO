@@ -22,17 +22,17 @@ int lastButtonDebounceTimes[amountOfButtons];
 unsigned long buttonDebounceDelay = 50;
 
 //Menu
-String status[] = {"Mood: Happy", "Hunger: 3/10", "Thirst: 2/10", "Steps: 143" };
-String food[] = {"Appel x 4", "Peer x 5", "Borgir x 2", "Salade x 5", "Frikandel x 6", "Kroket x 2", "Donut x 1" };
-String drinks[] = {"Water x 8", "Fris x 3", "Ranja x 0", "Vitamine drink x 5" };
-String settings[] = {"Volume: 5/10", "RESTART"};
+String status[] = {"Mood: 0/100", "Points: 143" };
+String food[] = {"Appel x 4", "Peer x 5", "Burger x 2", "Salade x 5", "Frikandel x 6", "Kroket x 2", "Donut x 1" };
+String drinks[] = {"Water x 8", "Fris x 3", "Limonade x 0", "Vitamine drink x 5",  "Thee x 2", "Koffie x 6"};
+String settings[] = {"Volume: 5/10", "SEND DATA"};
 String *menus[] = { status, food, drinks, settings };
 int currentMenu = 4;
 int menuIndex = 0;
 
 //Personal
 int characterIndex = 0;
-int hatIndex = 1;
+int hatIndex = 0;
 int faceIndex = 0;
 int shirtIndex = 0;
 int pantsIndex = 0;
@@ -42,6 +42,7 @@ static unsigned char **bits[] = {characterBits, hatBits, faceBits, shirtBits, pa
 Adafruit_MPU6050 mpu;
 int accelX, accelY, accelZ;
 unsigned long previousMeasure;
+unsigned long previousDebug;
 float vectorprevious;
 float vector;
 float totalvector;
@@ -84,41 +85,38 @@ void CheckForConnections()
 }
 
 void HandleMessage(String message) {
+  // send the message back to client for debug
   client.println(message);
   int index;
   int value;
   
+  // read all values into the character index array
   for(int i = 0; i < 5; i++) {
+    // read the value that is between the "!"s into value
     index = message.indexOf("!");
     message = message.substring(index + 1, message.length());
     index = message.indexOf("!");
     value = message.substring(0, index).toInt();
+    // store the value in the correct place
     characterIndexes[i] = value;
   }
 }
 
 void ListenToClient() {
   if(client.connected() > 0) {
+      // add the client input to string while its sending something
       while (client.available() > 0) {
         char a = client.read();
         clientMessage += a;
         }
+        // remove the control char at the end
         clientMessage = clientMessage.substring(0, clientMessage.length()-1);
+        // if input is a protocol, handle the message inside
         if (clientMessage.startsWith("#") && clientMessage.endsWith("%")) {
         HandleMessage(clientMessage.substring(1, clientMessage.length()-1));
       }
   }
 }
-
-// void getAccel() {
-//   TinyWireM.beginTransmission(mpu); //I2C address of the MPU
-//   TinyWireM.write(0x3B); //  Acceleration data register
-//   TinyWireM.endTransmission();
-//   TinyWireM.requestFrom(mpu, 6); // Get 6 bytes, 2 for each DoF
-//   accelX = TinyWireM.read() << 8|TinyWireM.read(); 
-//   accelY = TinyWireM.read() << 8|TinyWireM.read();
-//   accelZ = TinyWireM.read() << 8|TinyWireM.read();
-// }
 
 void DrawMenu(int menu) {
   int amountOfItems = 0;
@@ -364,9 +362,14 @@ void loop() {
   mpu.getEvent(&a, &g, &temp);
   vector = sqrt( (a.acceleration.x * a.acceleration.x) + (a.acceleration.y * a.acceleration.y) + (a.acceleration.z * a.acceleration.z) );
   totalvector = vector - vectorprevious;
-  if (totalvector > 6 && millis() - previousMeasure <= 500){
+  // for debug purpose
+  if (millis() - previousDebug >= 500) {
+    Serial.println(Steps);
+    previousDebug = millis();
+  }
+  if (totalvector > 6 && millis() - previousMeasure >= 1000){
     Steps++;
+    previousMeasure = millis();
   }
   vectorprevious = vector;
-  Serial.println(Steps);
 }

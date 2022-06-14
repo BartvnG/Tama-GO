@@ -22,11 +22,16 @@ int lastButtonDebounceTimes[amountOfButtons];
 unsigned long buttonDebounceDelay = 50;
 
 //Menu
-String status[] = {"Mood: 0/100", "Points: 143" };
-String food[] = {"Appel x 4", "Peer x 5", "Burger x 2", "Salade x 5", "Frikandel x 6", "Kroket x 2", "Donut x 1" };
-String drinks[] = {"Water x 8", "Fris x 3", "Limonade x 0", "Vitamine drink x 5",  "Thee x 2", "Koffie x 6"};
-String settings[] = {"Volume: 5/10", "SEND DATA"};
+String status[] = {"Happieness:", "Points:" };
+String food[] = {"Appel", "Peer", "Burger", "Salade", "Frikandel", "Kroket", "Donut" };
+String drinks[] = {"Water", "Fris", "Limonade", "Vitamine drink",  "Thee", "Koffie"};
+String settings[] = {"Volume:", "SEND DATA"};
 String *menus[] = { status, food, drinks, settings };
+int statusAmount[] = {0, 143};
+int foodAmount[] = {5, 0, 3, 4, 5, 9, 8};
+int drinksAmount[] = {2, 0, 3, 8, 0, 9};
+int settingsAmount[] = {5};
+int *menuAmounts[] = {statusAmount, foodAmount, drinksAmount, settingsAmount};
 int currentMenu = 4;
 int menuIndex = 0;
 
@@ -46,7 +51,6 @@ unsigned long previousDebug;
 float vectorprevious;
 float vector;
 float totalvector;
-int Steps = 0;
 
 //Connection
 //Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
@@ -84,21 +88,39 @@ void CheckForConnections()
   }
 }
 
-void HandleMessage(String message) {
-  // send the message back to client for debug
-  client.println(message);
+void ExtractData(String message, int arr[], int arrSize) {
   int index;
-  int value;
-  
+  int val;
   // read all values into the character index array
-  for(int i = 0; i < 5; i++) {
+  for(int i = 0; i < arrSize; i++) {
     // read the value that is between the "!"s into value
     index = message.indexOf("!");
     message = message.substring(index + 1, message.length());
     index = message.indexOf("!");
-    value = message.substring(0, index).toInt();
+    val = message.substring(0, index).toInt();
     // store the value in the correct place
-    characterIndexes[i] = value;
+    arr[i] = val;
+  }
+}
+
+void HandleMessage(String message) {
+  // send the message back to client for debug
+  client.println(message);
+  int typeOfMessage = message.substring(0, 1).toInt();
+  switch (typeOfMessage)
+  {
+  case 0:
+    ExtractData(message, characterIndexes, sizeof(characterIndexes)/sizeof(characterIndexes[1]));
+    break;
+  case 1:
+    ExtractData(message, foodAmount, sizeof(foodAmount)/sizeof(foodAmount[1]));
+    break;
+  case 2:
+    ExtractData(message, drinksAmount, sizeof(drinksAmount)/sizeof(drinksAmount[1]));
+  case 3:
+    ExtractData(message, statusAmount, sizeof(statusAmount)/sizeof(statusAmount[1]));
+  default:
+    break;
   }
 }
 
@@ -145,34 +167,43 @@ void DrawMenu(int menu) {
   int i = menuIndex;
   int elementsDrawn = 0;
   while (i < amountOfItems) {
-      if (elementsDrawn != 0) {
-        oled.drawString(5, 10*elementsDrawn, menus[menu][i]);
+    String stringToDraw = menus[menu][i];
+    if (menu != 0) {
+      stringToDraw += " x";
+    }
+    stringToDraw += " ";
+    stringToDraw += menuAmounts[menu][i];
+    if (elementsDrawn != 0) {
+      oled.drawString(5, 10*elementsDrawn, stringToDraw);
+    }
+    else {
+      if (menu != 0) {
+        stringToDraw += "<";
       }
       else {
-        String selectedItem = menus[menu][i];
-        selectedItem.concat("<");
-        oled.drawString(5, 10*elementsDrawn, selectedItem);
+        stringToDraw += "/100";
       }
-      elementsDrawn++;
-      if (elementsDrawn > 4) {
-        oled.drawString(5, 50, "V");
-        break;
-      }
-      i++;
+      oled.drawString(5, 10*elementsDrawn, stringToDraw);
     }
-    oled.display();
+    elementsDrawn++;
+    if (elementsDrawn > 4) {
+      oled.drawString(5, 50, "V");
+      break;
+    }
+    i++;
+  }
+  oled.display();
 }
 
 void SelectFromMenu() {
-  if (currentMenu != 4) {
-    String selectedItem = menus[currentMenu][menuIndex];
-    int newNumber = selectedItem.substring(selectedItem.length()-1).toInt()-1;
-    selectedItem = selectedItem.substring(0, selectedItem.length()-1);
-    selectedItem += newNumber;
-    if (newNumber >= 0) {
-      menus[currentMenu][menuIndex] = selectedItem;
+  if (currentMenu != 4 && currentMenu != 0) {
+    if (menuAmounts[currentMenu][menuIndex]-1 >= 0) {
+    menuAmounts[currentMenu][menuIndex]--;
     }
     DrawMenu(currentMenu);
+  }
+  else if (currentMenu == 0) {
+
   }
 }
 
@@ -182,6 +213,20 @@ void DrawCharacter() {
     oled.drawXbm(0, 0, 128, 64, bits[i][characterIndexes[i]]);
   }
   oled.display();
+}
+
+void MesurePoints() {
+  /* Get new sensor events with the readings */
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+  vector = sqrt( (a.acceleration.x * a.acceleration.x) + (a.acceleration.y * a.acceleration.y) + (a.acceleration.z * a.acceleration.z) );
+  totalvector = vector - vectorprevious;
+  if (totalvector > 4 && millis() - previousMeasure >= 1000){
+    statusAmount[1]++;
+    previousMeasure = millis();
+    DrawMenu(currentMenu);
+  }
+  vectorprevious = vector;
 }
 
 void setup() {
@@ -321,8 +366,10 @@ void ButtonLogic(int assignedButton) {
       case 1:
         if (buttonStates[1] == HIGH) {
           Serial.println("button 2 on");
-          menuIndex++;
-          DrawMenu(currentMenu);
+          if (currentMenu != 0) {
+            menuIndex++;
+            DrawMenu(currentMenu);
+          }
         }
         break;
       case 2:
@@ -348,28 +395,19 @@ void ButtonLogic(int assignedButton) {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  // check for incoming tcp client connections:
   CheckForConnections();
-  for (int i = 0; i < amountOfButtons; i++)
-  {
+
+  for (int i = 0; i < amountOfButtons; i++) {
     ButtonLogic(i);
   }
+
+  // listen to input from a client
   ListenToClient();
+
   if (currentMenu == 4) {
     DrawCharacter();
   }
-  /* Get new sensor events with the readings */
-  sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp);
-  vector = sqrt( (a.acceleration.x * a.acceleration.x) + (a.acceleration.y * a.acceleration.y) + (a.acceleration.z * a.acceleration.z) );
-  totalvector = vector - vectorprevious;
-  // for debug purpose
-  if (millis() - previousDebug >= 500) {
-    Serial.println(Steps);
-    previousDebug = millis();
-  }
-  if (totalvector > 6 && millis() - previousMeasure >= 1000){
-    Steps++;
-    previousMeasure = millis();
-  }
-  vectorprevious = vector;
+
+  MesurePoints();
 }

@@ -25,7 +25,7 @@ unsigned long buttonDebounceDelay = 50;
 String status[] = {"Happieness:", "Points:" };
 String food[] = {"Appel", "Peer", "Burger", "Salade", "Frikandel", "Kroket", "Donut" };
 String drinks[] = {"Water", "Fris", "Limonade", "Vitamine drink",  "Thee", "Koffie"};
-String settings[] = {"Volume:", "SEND DATA"};
+String settings[] = {"SEND DATA"};
 String *menus[] = { status, food, drinks, settings };
 int statusAmount[] = {0, 143};
 int foodAmount[] = {5, 0, 3, 4, 5, 9, 8};
@@ -62,6 +62,7 @@ const char* ssid = "esp32_laptop";
 const char* password = "E077p727";
 
 //Communication
+int typeOfMessage;
 String clientMessage = "";
 const char startChar = '#';
 const char endChar = '%';
@@ -106,19 +107,20 @@ void ExtractData(String message, int arr[], int arrSize) {
 void HandleMessage(String message) {
   // send the message back to client for debug
   client.println(message);
-  int typeOfMessage = message.substring(0, 1).toInt();
+  Serial.println(message);
+  typeOfMessage = message.substring(0, 1).toInt();
   switch (typeOfMessage)
   {
   case 0:
     ExtractData(message, characterIndexes, sizeof(characterIndexes)/sizeof(characterIndexes[1]));
     break;
   case 1:
-    ExtractData(message, foodAmount, sizeof(foodAmount)/sizeof(foodAmount[1]));
+    ExtractData(message, statusAmount, sizeof(statusAmount)/sizeof(statusAmount[1]));
     break;
   case 2:
-    ExtractData(message, drinksAmount, sizeof(drinksAmount)/sizeof(drinksAmount[1]));
+    ExtractData(message, foodAmount, sizeof(foodAmount)/sizeof(foodAmount[1]));
   case 3:
-    ExtractData(message, statusAmount, sizeof(statusAmount)/sizeof(statusAmount[1]));
+    ExtractData(message, drinksAmount, sizeof(drinksAmount)/sizeof(drinksAmount[1]));
   default:
     break;
   }
@@ -136,6 +138,7 @@ void ListenToClient() {
         // if input is a protocol, handle the message inside
         if (clientMessage.startsWith("#") && clientMessage.endsWith("%")) {
         HandleMessage(clientMessage.substring(1, clientMessage.length()-1));
+        Serial.println(clientMessage);
       }
   }
 }
@@ -168,11 +171,13 @@ void DrawMenu(int menu) {
   int elementsDrawn = 0;
   while (i < amountOfItems) {
     String stringToDraw = menus[menu][i];
-    if (menu != 0) {
+    if (menu != 0 && menu != 3) {
       stringToDraw += " x";
     }
     stringToDraw += " ";
-    stringToDraw += menuAmounts[menu][i];
+    if (menu != 3) {
+      stringToDraw += menuAmounts[menu][i];
+    }
     if (elementsDrawn != 0) {
       oled.drawString(5, 10*elementsDrawn, stringToDraw);
     }
@@ -195,15 +200,15 @@ void DrawMenu(int menu) {
   oled.display();
 }
 
-void SelectFromMenu() {
+void SelectFromMenu() { 
   if (currentMenu != 4 && currentMenu != 0) {
     if (menuAmounts[currentMenu][menuIndex]-1 >= 0) {
     menuAmounts[currentMenu][menuIndex]--;
     }
     DrawMenu(currentMenu);
   }
-  else if (currentMenu == 0) {
-
+  else if (currentMenu == 3) {
+    // Send data to software after checking connection
   }
 }
 
@@ -229,26 +234,29 @@ void MesurePoints() {
   vectorprevious = vector;
 }
 
+void GetData() {
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.println("Connecting to WiFi..");
+  }
+  Serial.println("Connected to the WiFi network");
+  Server.begin();
+  Serial.println(WiFi.localIP());
+  while (!client.connected()) {
+    CheckForConnections();
+  }
+  // read client stuff untill everything is in
+  while (typeOfMessage < 3) {
+    ListenToClient();
+  }
+}
+
 void setup() {
   //put your setup code here, to run once:
   Serial.begin(9600);
-  // TinyWireM.begin();
-  // TinyWireM.beginTransmission(mpu); 
-  // TinyWireM.write(0x6B); //  Power setting address
-  // TinyWireM.write(0b00000000); // Disable sleep mode (just in case)
-  // TinyWireM.endTransmission();
-  // TinyWireM.beginTransmission(mpu); 
-  // TinyWireM.write(0x1B); // Config register for Gyro
-  // TinyWireM.write(0x00000000); // 250° per second range (default)
-  // TinyWireM.endTransmission();
-  // TinyWireM.beginTransmission(mpu); //I2C address of the MPU
-  // TinyWireM.write(0x1C); // Accelerometer config register
-  // TinyWireM.write(0b00000000); // 2g range +/- (default)
-  // TinyWireM.endTransmission();
   while (!Serial)
     delay(10); // will pause Zero, Leonardo, etc until serial console opens
-
-  Serial.println("Adafruit MPU6050 test!");
 
   // Try to initialize!
   if (!mpu.begin()) {
@@ -257,6 +265,7 @@ void setup() {
       delay(10);
     }
   }
+
   Serial.println("MPU6050 Found!");
 
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
@@ -317,6 +326,7 @@ void setup() {
     Serial.println("5 Hz");
     break;
   }
+
   for (int i = 0; i < amountOfButtons; i++) {
     pinMode(buttons[i], INPUT_PULLUP);
   }
@@ -331,14 +341,7 @@ void setup() {
   oled.drawXbm(0, 16, 128, 30, logo);
   oled.display();
 
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.println("Connecting to WiFi..");
-  }
-  Serial.println("Connected to the WiFi network");
-  Server.begin();
-  Serial.println(WiFi.localIP());
+  GetData();
   DrawCharacter();
 }
 

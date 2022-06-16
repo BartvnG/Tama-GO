@@ -43,6 +43,13 @@ int shirtIndex = 0;
 int pantsIndex = 0;
 int characterIndexes[] = { characterIndex, hatIndex, faceIndex, shirtIndex, pantsIndex};
 static unsigned char **bits[] = {characterBits, hatBits, faceBits, shirtBits, pantsBits};
+int arraySizes[] = {
+  sizeof(characterIndexes)/sizeof(characterIndexes[1]), 
+  sizeof(statusAmount)/sizeof(statusAmount[1]), 
+  sizeof(foodAmount)/sizeof(foodAmount[1]), 
+  sizeof(drinksAmount)/sizeof(drinksAmount[1])
+  };
+
 //mpu
 Adafruit_MPU6050 mpu;
 int accelX, accelY, accelZ;
@@ -60,6 +67,7 @@ const uint ServerPort = 23;
 WiFiServer Server(ServerPort);
 const char* ssid = "esp32_laptop";
 const char* password = "E077p727";
+unsigned long lastWifiConnectAttempt;
 
 //Communication
 int typeOfMessage;
@@ -73,6 +81,7 @@ void CheckForConnections()
 {
   if (Server.hasClient())
   {
+    Serial.println("server has client");
     // If we are already connected to another computer,
     // then reject the new connection. Otherwise accept
     // the connection.
@@ -112,15 +121,15 @@ void HandleMessage(String message) {
   switch (typeOfMessage)
   {
   case 0:
-    ExtractData(message, characterIndexes, sizeof(characterIndexes)/sizeof(characterIndexes[1]));
+    ExtractData(message, characterIndexes, arraySizes[0]);
     break;
   case 1:
-    ExtractData(message, statusAmount, sizeof(statusAmount)/sizeof(statusAmount[1]));
+    ExtractData(message, statusAmount, arraySizes[1]);
     break;
   case 2:
-    ExtractData(message, foodAmount, sizeof(foodAmount)/sizeof(foodAmount[1]));
+    ExtractData(message, foodAmount, arraySizes[2]);
   case 3:
-    ExtractData(message, drinksAmount, sizeof(drinksAmount)/sizeof(drinksAmount[1]));
+    ExtractData(message, drinksAmount, arraySizes[3]);
   default:
     break;
   }
@@ -200,8 +209,89 @@ void DrawMenu(int menu) {
   oled.display();
 }
 
-void SelectFromMenu() { 
-  if (currentMenu != 4 && currentMenu != 0) {
+bool ConnectToWifi(bool cancelable) {
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.println("Connecting to WiFi..");
+    buttonReading = digitalRead(buttons[0]);
+    if (cancelable && buttonReading == HIGH) {
+      break;
+    }
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("Connected to the WiFi network");
+    Server.begin();
+    Serial.println(WiFi.localIP());
+    return true;
+  }
+  return false;
+}
+
+void SendDataSafely() {
+    if (WiFi.status() == WL_CONNECTED) {
+      if (client.connected() > 0) {
+        oled.clear();
+        oled.drawString(0, 0, "Loading...");
+        oled.display();
+        for (int i = 1; i < 4; i++) {
+          String message = "#";
+          message += String(i);
+          for (int j = 0; j < arraySizes[i]; j++) {
+            message += "!";
+            message += menuAmounts[i-1][j];
+          }
+          message += "%";
+          client.println(message);
+          Serial.println(message);
+        }
+        oled.clear();
+        oled.drawString(0, 0, "Data sent!");
+        oled.display();
+        delay(2000);
+      }
+      else {
+        oled.clear();
+        oled.drawString(0, 0, "App not connected.\n Attempting to connect...");
+        oled.display();
+        delay(2000);
+        while (!client.connected()) {
+          buttonReading = digitalRead(buttons[0]);
+          if (buttonReading == HIGH) {
+            oled.clear();
+            oled.drawString(0, 0, "Canceled app\n connection attempt");
+            oled.display();
+            delay(2000);
+            break;
+          }
+          CheckForConnections();
+        }
+        oled.clear();
+        oled.drawString(0, 0, "App connected");
+        oled.display();
+      }
+    }
+    else {
+      oled.clear();
+      oled.drawString(0, 0, "Wifi not connected.\n Attempting to connect...");
+      oled.display();
+      if (!ConnectToWifi(true)) {
+        oled.clear();
+        oled.drawString(0, 0, "Exited connection process");
+        oled.display();
+      }
+      else {
+        oled.clear();
+        oled.drawString(0, 0, "Connected to the\n WiFi network");
+        oled.display();
+      }
+      delay(2000);
+    }
+  DrawMenu(currentMenu);
+}
+
+void SelectFromMenu() {   
+  if (currentMenu == 1 || currentMenu == 2) {
     if (menuAmounts[currentMenu][menuIndex]-1 >= 0) {
     menuAmounts[currentMenu][menuIndex]--;
     }
@@ -209,6 +299,7 @@ void SelectFromMenu() {
   }
   else if (currentMenu == 3) {
     // Send data to software after checking connection
+    SendDataSafely();
   }
 }
 
@@ -235,14 +326,7 @@ void MesurePoints() {
 }
 
 void GetData() {
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.println("Connecting to WiFi..");
-  }
-  Serial.println("Connected to the WiFi network");
-  Server.begin();
-  Serial.println(WiFi.localIP());
+  ConnectToWifi(false);
   while (!client.connected()) {
     CheckForConnections();
   }
@@ -255,8 +339,8 @@ void GetData() {
 void setup() {
   //put your setup code here, to run once:
   Serial.begin(9600);
-  while (!Serial)
-    delay(10); // will pause Zero, Leonardo, etc until serial console opens
+  // while (!Serial)
+  //   delay(10); // will pause Zero, Leonardo, etc until serial console opens
 
   // Try to initialize!
   if (!mpu.begin()) {
@@ -267,65 +351,9 @@ void setup() {
   }
 
   Serial.println("MPU6050 Found!");
-
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-  Serial.print("Accelerometer range set to: ");
-  switch (mpu.getAccelerometerRange()) {
-  case MPU6050_RANGE_2_G:
-    Serial.println("+-2G");
-    break;
-  case MPU6050_RANGE_4_G:
-    Serial.println("+-4G");
-    break;
-  case MPU6050_RANGE_8_G:
-    Serial.println("+-8G");
-    break;
-  case MPU6050_RANGE_16_G:
-    Serial.println("+-16G");
-    break;
-  }
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-  Serial.print("Gyro range set to: ");
-  switch (mpu.getGyroRange()) {
-  case MPU6050_RANGE_250_DEG:
-    Serial.println("+- 250 deg/s");
-    break;
-  case MPU6050_RANGE_500_DEG:
-    Serial.println("+- 500 deg/s");
-    break;
-  case MPU6050_RANGE_1000_DEG:
-    Serial.println("+- 1000 deg/s");
-    break;
-  case MPU6050_RANGE_2000_DEG:
-    Serial.println("+- 2000 deg/s");
-    break;
-  }
-
   mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
-  Serial.print("Filter bandwidth set to: ");
-  switch (mpu.getFilterBandwidth()) {
-  case MPU6050_BAND_260_HZ:
-    Serial.println("260 Hz");
-    break;
-  case MPU6050_BAND_184_HZ:
-    Serial.println("184 Hz");
-    break;
-  case MPU6050_BAND_94_HZ:
-    Serial.println("94 Hz");
-    break;
-  case MPU6050_BAND_44_HZ:
-    Serial.println("44 Hz");
-    break;
-  case MPU6050_BAND_21_HZ:
-    Serial.println("21 Hz");
-    break;
-  case MPU6050_BAND_10_HZ:
-    Serial.println("10 Hz");
-    break;
-  case MPU6050_BAND_5_HZ:
-    Serial.println("5 Hz");
-    break;
-  }
 
   for (int i = 0; i < amountOfButtons; i++) {
     pinMode(buttons[i], INPUT_PULLUP);

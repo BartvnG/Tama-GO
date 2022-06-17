@@ -220,7 +220,7 @@ static unsigned char mametchi[] = {
    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
    0x00, 0x00, 0x00, 0x00 };
 
-static unsigned char *characterBits[] = { mametchi };
+static unsigned char *characterBits[] = { empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, mametchi };
 
 //Hat bitmaps
 static unsigned char sombrero[] = {
@@ -311,7 +311,7 @@ static unsigned char sombrero[] = {
    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
    0x00, 0x00, 0x00, 0x00 };
 
-static unsigned char *hatBits[] = { empty, sombrero };
+static unsigned char *hatBits[] = { empty, empty, empty, sombrero };
 
 //Face bitmaps
 
@@ -406,7 +406,7 @@ static unsigned char hawaiiShirt[] = {
    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
    0x00, 0x00, 0x00, 0x00 };
 
-static unsigned char *shirtBits[] = { empty, hawaiiShirt };
+static unsigned char *shirtBits[] = { empty, empty, empty, empty, hawaiiShirt };
 
 //Pant bitmaps
 

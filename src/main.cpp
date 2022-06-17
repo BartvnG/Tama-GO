@@ -34,6 +34,8 @@ int settingsAmount[] = {5};
 int *menuAmounts[] = {statusAmount, foodAmount, drinksAmount, settingsAmount};
 int currentMenu = 4;
 int menuIndex = 0;
+const int foodHappienessValues[] = {10, 20, 30, 20, 10, 10, 50};
+const int drinkHappienessValues[] = {10, 20, 20, 30, 10, 10, 20};
 
 //Personal
 int characterIndex = 0;
@@ -76,6 +78,7 @@ const char startChar = '#';
 const char endChar = '%';
 bool communicationStarted = false;
 
+
 WiFiClient client;
 void CheckForConnections()
 {
@@ -96,6 +99,12 @@ void CheckForConnections()
       client = Server.available();
     }
   }
+}
+
+void PrintStringToOled(String string) {
+  oled.clear();
+  oled.drawString(0, 0, string);
+  oled.display();
 }
 
 void ExtractData(String message, int arr[], int arrSize) {
@@ -231,9 +240,7 @@ bool ConnectToWifi(bool cancelable) {
 void SendDataSafely() {
     if (WiFi.status() == WL_CONNECTED) {
       if (client.connected() > 0) {
-        oled.clear();
-        oled.drawString(0, 0, "Loading...");
-        oled.display();
+        PrintStringToOled("Loading...");
         for (int i = 1; i < 4; i++) {
           String message = "#";
           message += String(i);
@@ -245,45 +252,31 @@ void SendDataSafely() {
           client.println(message);
           Serial.println(message);
         }
-        oled.clear();
-        oled.drawString(0, 0, "Data sent!");
-        oled.display();
+        PrintStringToOled("Data sent!");
         delay(2000);
       }
       else {
-        oled.clear();
-        oled.drawString(0, 0, "App not connected.\n Attempting to connect...");
-        oled.display();
+        PrintStringToOled("App not connected.\n Attempting to connect...");
         delay(2000);
         while (!client.connected()) {
           buttonReading = digitalRead(buttons[0]);
           if (buttonReading == HIGH) {
-            oled.clear();
-            oled.drawString(0, 0, "Canceled app\n connection attempt");
-            oled.display();
+            PrintStringToOled("Canceled app\n connection attempt");
             delay(2000);
             break;
           }
           CheckForConnections();
         }
-        oled.clear();
-        oled.drawString(0, 0, "App connected");
-        oled.display();
+        PrintStringToOled("App connected");
       }
     }
     else {
-      oled.clear();
-      oled.drawString(0, 0, "Wifi not connected.\n Attempting to connect...");
-      oled.display();
+      PrintStringToOled( "Wifi not connected.\n Attempting to connect...");
       if (!ConnectToWifi(true)) {
-        oled.clear();
-        oled.drawString(0, 0, "Exited connection process");
-        oled.display();
+        PrintStringToOled("Exited connection process");
       }
       else {
-        oled.clear();
-        oled.drawString(0, 0, "Connected to the\n WiFi network");
-        oled.display();
+        PrintStringToOled("Connected to the\n WiFi network");
       }
       delay(2000);
     }
@@ -293,7 +286,8 @@ void SendDataSafely() {
 void SelectFromMenu() {   
   if (currentMenu == 1 || currentMenu == 2) {
     if (menuAmounts[currentMenu][menuIndex]-1 >= 0) {
-    menuAmounts[currentMenu][menuIndex]--;
+      // add happieness based on food/drink
+      menuAmounts[currentMenu][menuIndex]--;
     }
     DrawMenu(currentMenu);
   }
@@ -339,8 +333,8 @@ void GetData() {
 void setup() {
   //put your setup code here, to run once:
   Serial.begin(9600);
-  // while (!Serial)
-  //   delay(10); // will pause Zero, Leonardo, etc until serial console opens
+  while (!Serial)
+    delay(10); // will pause Zero, Leonardo, etc until serial console opens
 
   // Try to initialize!
   if (!mpu.begin()) {

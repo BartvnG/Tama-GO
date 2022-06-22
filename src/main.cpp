@@ -69,7 +69,6 @@ const uint ServerPort = 23;
 WiFiServer Server(ServerPort);
 const char* ssid = "esp32_laptop";
 const char* password = "E077p727";
-unsigned long lastWifiConnectAttempt;
 
 //Communication
 int typeOfMessage;
@@ -146,18 +145,18 @@ void HandleMessage(String message) {
 
 void ListenToClient() {
   if(client.connected() > 0) {
-      // add the client input to string while its sending something
-      while (client.available() > 0) {
-        char a = client.read();
-        clientMessage += a;
-        }
-        // remove the control char at the end
-        clientMessage = clientMessage.substring(0, clientMessage.length()-1);
-        // if input is a protocol, handle the message inside
-        if (clientMessage.startsWith("#") && clientMessage.endsWith("%")) {
-        HandleMessage(clientMessage.substring(1, clientMessage.length()-1));
-        Serial.println(clientMessage);
-      }
+    // add the client input to string while its sending something
+    while (client.available() > 0) {
+      char a = client.read();
+      clientMessage += a;
+    }
+    // remove the control char at the end
+    clientMessage = clientMessage.substring(0, clientMessage.length()-1);
+    // if input is a protocol, handle the message inside
+    if (clientMessage.startsWith("#") && clientMessage.endsWith("%")) {
+      HandleMessage(clientMessage.substring(1, clientMessage.length()-1));
+      Serial.println(clientMessage);
+    }
   }
 }
 
@@ -286,8 +285,20 @@ void SendDataSafely() {
 void SelectFromMenu() {   
   if (currentMenu == 1 || currentMenu == 2) {
     if (menuAmounts[currentMenu][menuIndex]-1 >= 0) {
-      // add happieness based on food/drink
       menuAmounts[currentMenu][menuIndex]--;
+      // add happieness based on food/drink
+      if (currentMenu == 1) {
+        statusAmount[0] += foodHappienessValues[menuIndex];
+        if (statusAmount[0] > 100) {
+          statusAmount[0] = 100;
+        }
+      }
+      else {
+        statusAmount[0] += drinkHappienessValues[menuIndex];
+        if (statusAmount[0] > 100) {
+          statusAmount[0] = 100;
+        }
+      }
     }
     DrawMenu(currentMenu);
   }
@@ -312,6 +323,7 @@ void MesurePoints() {
   vector = sqrt( (a.acceleration.x * a.acceleration.x) + (a.acceleration.y * a.acceleration.y) + (a.acceleration.z * a.acceleration.z) );
   totalvector = vector - vectorprevious;
   if (totalvector > 4 && millis() - previousMeasure >= 1000){
+    statusAmount[0]--;
     statusAmount[1]++;
     previousMeasure = millis();
     DrawMenu(currentMenu);

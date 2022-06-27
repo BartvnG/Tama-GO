@@ -22,7 +22,7 @@ int lastButtonDebounceTimes[amountOfButtons];
 unsigned long buttonDebounceDelay = 50;
 
 //Menu
-String status[] = {"Happieness:", "Points:" };
+String status[] = {"Stamina:", "Points:" };
 String food[] = {"Appel", "Peer", "Burger", "Salade", "Frikandel", "Kroket", "Donut" };
 String drinks[] = {"Water", "Fris", "Limonade", "Vitamine drink",  "Thee", "Koffie"};
 String settings[] = {"SEND DATA"};
@@ -323,8 +323,10 @@ void MesurePoints() {
   vector = sqrt( (a.acceleration.x * a.acceleration.x) + (a.acceleration.y * a.acceleration.y) + (a.acceleration.z * a.acceleration.z) );
   totalvector = vector - vectorprevious;
   if (totalvector > 4 && millis() - previousMeasure >= 1000){
-    statusAmount[0]--;
-    statusAmount[1]++;
+    if (!statusAmount[0] <= 0) {
+      statusAmount[0]--;
+      statusAmount[1]++;
+    }
     previousMeasure = millis();
     DrawMenu(currentMenu);
   }
